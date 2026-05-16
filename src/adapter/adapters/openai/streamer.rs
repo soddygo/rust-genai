@@ -67,6 +67,57 @@ impl OpenAIStreamer {
 		}
 	}
 
+	/// Build the InterStreamEnd event from captured stream data.
+	/// Takes ownership of all captured state so the streamer is clean after this call.
+	fn build_end_event(&mut self) -> InterStreamEvent {
+		let captured_usage = if self.options.capture_usage {
+			self.captured_data.usage.take()
+		} else {
+			None
+		};
+		let captured_tool_calls = if let Some(tools_calls) = self.captured_data.tool_calls.take() {
+			let tools_calls: Vec<ToolCall> = tools_calls
+				.into_iter()
+				.map(|tool_call| {
+					let ToolCall {
+						call_id,
+						fn_name,
+						fn_arguments,
+						..
+					} = tool_call;
+					let fn_arguments = match fn_arguments {
+						Value::String(fn_arguments_string) => {
+							match serde_json::from_str::<Value>(&fn_arguments_string) {
+								Ok(fn_arguments) => fn_arguments,
+								Err(_) => Value::String(fn_arguments_string),
+							}
+						}
+						_ => fn_arguments,
+					};
+					ToolCall {
+						call_id,
+						fn_name,
+						fn_arguments,
+						thought_signatures: None,
+					}
+				})
+				.collect();
+			Some(tools_calls)
+		} else {
+			None
+		};
+		let inter_stream_end = InterStreamEnd {
+			captured_usage,
+			captured_stop_reason: self.captured_data.stop_reason.take().map(StopReason::from),
+			captured_text_content: self.captured_data.content.take(),
+			captured_reasoning_content: self.captured_data.reasoning_content.take(),
+			captured_tool_calls,
+			captured_thought_signatures: None,
+			captured_response_id: None,
+		};
+		InterStreamEvent::End(inter_stream_end)
+	}
+
 	/// Captures a single tool call into `captured_data.tool_calls`, merging with existing if needed.
 	/// Returns the (possibly merged) tool call for use in events.
 	fn capture_tool_call(&mut self, index: usize, call_id: String, fn_name: String, arguments: String) -> ToolCall {
@@ -120,65 +171,7 @@ impl futures::Stream for OpenAIStreamer {
 					// According to OpenAI Spec, this is the end message
 					if message.data == "[DONE]" {
 						self.done = true;
-
-						// -- Build the usage and captured_content
-						// TODO: Needs to clarify wh for usage we do not adopt the same strategy from captured content below
-						let captured_usage = if self.options.capture_usage {
-							self.captured_data.usage.take()
-						} else {
-							None
-						};
-
-						// -- Process the captured_tool_calls
-						// NOTE: here we attempt to parse the `fn_arguments` if it is string, because it means that it was accumulated
-						let captured_tool_calls = if let Some(tools_calls) = self.captured_data.tool_calls.take() {
-							let tools_calls: Vec<ToolCall> = tools_calls
-								.into_iter()
-								.map(|tool_call| {
-									// extrat
-									let ToolCall {
-										call_id,
-										fn_name,
-										fn_arguments,
-										..
-									} = tool_call;
-									// parse fn_arguments if needed
-									let fn_arguments = match fn_arguments {
-										Value::String(fn_arguments_string) => {
-											// NOTE: Here we are resilient for now, if we cannot parse, just return the original String
-											match serde_json::from_str::<Value>(&fn_arguments_string) {
-												Ok(fn_arguments) => fn_arguments,
-												Err(_) => Value::String(fn_arguments_string),
-											}
-										}
-										_ => fn_arguments,
-									};
-
-									ToolCall {
-										call_id,
-										fn_name,
-										fn_arguments,
-										thought_signatures: None,
-									}
-								})
-								.collect();
-							Some(tools_calls)
-						} else {
-							None
-						};
-
-						// Return the internal stream end
-						let inter_stream_end = InterStreamEnd {
-							captured_usage,
-							captured_stop_reason: self.captured_data.stop_reason.take().map(StopReason::from),
-							captured_text_content: self.captured_data.content.take(),
-							captured_reasoning_content: self.captured_data.reasoning_content.take(),
-							captured_tool_calls,
-							captured_thought_signatures: None,
-							captured_response_id: None,
-						};
-
-						return Poll::Ready(Some(Ok(InterStreamEvent::End(inter_stream_end))));
+						return Poll::Ready(Some(Ok(self.build_end_event())));
 					}
 
 					// -- Other Content Messages
@@ -382,6 +375,18 @@ impl futures::Stream for OpenAIStreamer {
 					})));
 				}
 				None => {
+					// Some providers (e.g., MiniMax) close the stream without
+					// sending data: [DONE]. When finish_reason has been captured,
+					// treat this as a graceful end.
+					if self.captured_data.stop_reason.is_some() {
+						tracing::info!(
+							model = %self.options.model_iden.model_name,
+							stop_reason = ?self.captured_data.stop_reason,
+							"Stream ended without [DONE] — captured finish_reason, emitting End event"
+						);
+						self.done = true;
+						return Poll::Ready(Some(Ok(self.build_end_event())));
+					}
 					return Poll::Ready(None);
 				}
 			}

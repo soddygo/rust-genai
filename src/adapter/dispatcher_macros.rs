@@ -55,6 +55,10 @@ macro_rules! dispatch_adapter {
 				type A = crate::adapter::mimo::[<Mimo Adapter>];
 				$body
 			}
+			crate::adapter::AdapterKind::MiniMax => {
+				type A = crate::adapter::minimax::[<MiniMax Adapter>];
+				$body
+			}
 			crate::adapter::AdapterKind::Nebius => {
 				type A = crate::adapter::nebius::[<Nebius Adapter>];
 				$body

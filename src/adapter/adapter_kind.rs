@@ -20,6 +20,7 @@ use crate::adapter::fireworks::FireworksAdapter;
 use crate::adapter::gemini::GeminiAdapter;
 use crate::adapter::groq::GroqAdapter;
 use crate::adapter::mimo::MimoAdapter;
+use crate::adapter::minimax::MiniMaxAdapter;
 use crate::adapter::moonshot::MoonshotAdapter;
 use crate::adapter::nebius::NebiusAdapter;
 use crate::adapter::openai::OpenAIAdapter;
@@ -51,6 +52,8 @@ pub enum AdapterKind {
 	Groq,
 	/// For Mimo (Mostly use OpenAI)
 	Mimo,
+	/// For MiniMax (Mostly use OpenAI, with system message merging)
+	MiniMax,
 	/// For Moonshot AI (Mostly use OpenAI)
 	Moonshot,
 	/// For Nebius (Mostly use OpenAI)
@@ -107,6 +110,7 @@ impl AdapterKind {
 			AdapterKind::Together => "Together",
 			AdapterKind::Groq => "Groq",
 			AdapterKind::Mimo => "Mimo",
+			AdapterKind::MiniMax => "MiniMax",
 			AdapterKind::Moonshot => "Moonshot",
 			AdapterKind::Nebius => "Nebius",
 			AdapterKind::Xai => "xAi",
@@ -138,6 +142,7 @@ impl AdapterKind {
 			AdapterKind::Together => "together",
 			AdapterKind::Groq => "groq",
 			AdapterKind::Mimo => "mimo",
+			AdapterKind::MiniMax => "minimax",
 			AdapterKind::Moonshot => "moonshot",
 			AdapterKind::Nebius => "nebius",
 			AdapterKind::Xai => "xai",
@@ -168,6 +173,7 @@ impl AdapterKind {
 			"together" => Some(AdapterKind::Together),
 			"groq" => Some(AdapterKind::Groq),
 			"mimo" => Some(AdapterKind::Mimo),
+			"minimax" => Some(AdapterKind::MiniMax),
 			"moonshot" => Some(AdapterKind::Moonshot),
 			"nebius" => Some(AdapterKind::Nebius),
 			"xai" => Some(AdapterKind::Xai),
@@ -203,6 +209,7 @@ impl AdapterKind {
 			AdapterKind::Together => TogetherAdapter::DEFAULT_API_KEY_ENV_NAME,
 			AdapterKind::Groq => GroqAdapter::DEFAULT_API_KEY_ENV_NAME,
 			AdapterKind::Mimo => MimoAdapter::DEFAULT_API_KEY_ENV_NAME,
+			AdapterKind::MiniMax => MiniMaxAdapter::DEFAULT_API_KEY_ENV_NAME,
 			AdapterKind::Moonshot => MoonshotAdapter::DEFAULT_API_KEY_ENV_NAME,
 			AdapterKind::Nebius => NebiusAdapter::DEFAULT_API_KEY_ENV_NAME,
 			AdapterKind::Xai => XaiAdapter::DEFAULT_API_KEY_ENV_NAME,
