@@ -3,7 +3,7 @@ use crate::adapter::openai::OpenAIAdapter;
 use crate::adapter::{Adapter, AdapterKind, ServiceType, WebRequestData};
 use crate::chat::{
 	ChatMessage, ChatOptionsSet, ChatRequest, ChatResponse, ChatRole, ChatStreamResponse,
-	ContentPart,
+	ContentPart, MessageContent,
 };
 use crate::resolver::{AuthData, Endpoint};
 use crate::webc::WebResponse;
@@ -152,9 +152,10 @@ impl Adapter for MiniMaxAdapter {
 /// a single system prompt, joined by "\n\n".
 fn merge_system_messages(chat_req: &mut ChatRequest) {
 	let mut systems: Vec<String> = Vec::new();
-	if let Some(ref sys) = chat_req.system {
+	// Take ownership to avoid cloning chat_req.system.
+	if let Some(sys) = chat_req.system.take() {
 		if !sys.is_empty() {
-			systems.push(sys.clone());
+			systems.push(sys);
 		}
 	}
 	chat_req.messages.retain(|msg| {
@@ -207,8 +208,11 @@ fn reorder_tool_messages(chat_req: &mut ChatRequest) {
 			continue;
 		}
 
-		// Collect consecutive tool call messages and their call_ids
-		let mut tc_msgs: Vec<(ChatMessage, String)> = Vec::new();
+		// Collect tool call indices and per-message call_ids.
+		// Store indices rather than cloning messages to avoid
+		// a double-clone for each tool call message.
+		let tc_start = i;
+		let mut tc_ids: Vec<Vec<String>> = Vec::new();
 		while i < msgs.len() {
 			let is_tc = msgs[i].role == ChatRole::Assistant
 				&& msgs[i]
@@ -219,37 +223,84 @@ fn reorder_tool_messages(chat_req: &mut ChatRequest) {
 			if !is_tc {
 				break;
 			}
-			for part in msgs[i].content.parts() {
-				if let ContentPart::ToolCall(tc) = part {
-					tc_msgs.push((msgs[i].clone(), tc.call_id.clone()));
-				}
-			}
+			let call_ids: Vec<String> = msgs[i]
+				.content
+				.parts()
+				.iter()
+				.filter_map(|p| {
+					if let ContentPart::ToolCall(tc) = p {
+						Some(tc.call_id.clone())
+					} else {
+						None
+					}
+				})
+				.collect();
+			tc_ids.push(call_ids);
 			i += 1;
 		}
 
-		// Collect tool result messages that immediately follow
-		let mut tr_map: HashMap<String, ChatMessage> = HashMap::new();
+		// Collect tool result indices by call_id
+		let mut tr_map: HashMap<String, usize> = HashMap::new();
 		while i < msgs.len() && msgs[i].role == ChatRole::Tool {
 			for part in msgs[i].content.parts() {
 				if let ContentPart::ToolResponse(tr) = part {
-					tr_map.insert(tr.call_id.clone(), msgs[i].clone());
+					tr_map.insert(tr.call_id.clone(), i);
 				}
 			}
 			i += 1;
 		}
 
-		// Interleave: for each tool call, emit it followed by its result
-		let reordered_count = tc_msgs.len();
-		for (tc_msg, call_id) in &tc_msgs {
-			result.push(tc_msg.clone());
-			if let Some(tr_msg) = tr_map.remove(call_id) {
-				result.push(tr_msg);
+		// Interleave: for each tool call message, clone it once
+		// directly from msgs and emit any matching tool result.
+		let reordered_count = tc_ids.len();
+		for (idx_offset, call_ids) in tc_ids.iter().enumerate() {
+			let tc_idx = tc_start + idx_offset;
+			if call_ids.len() <= 1 {
+				result.push(msgs[tc_idx].clone());
+				if let Some(call_id) = call_ids.first()
+					&& let Some(tr_idx) = tr_map.remove(call_id)
+				{
+					result.push(msgs[tr_idx].clone());
+				}
+			} else {
+				// Multiple tool calls in one message:
+				// MiniMax requires strict assistant→tool adjacency
+				// (error 2013). Split into separate messages, each
+				// with one tool call. Keep text/reasoning only in
+				// the first split to avoid content duplication.
+				let mut first = true;
+				for call_id in call_ids {
+					let mut msg = msgs[tc_idx].clone();
+					let parts = msg.content.into_parts();
+					let filtered: Vec<ContentPart> = parts
+						.into_iter()
+						.filter(|p| {
+							!matches!(p, ContentPart::ToolCall(_))
+								|| matches!(p, ContentPart::ToolCall(tc) if &tc.call_id == call_id)
+						})
+						.collect();
+					if first {
+						msg.content = MessageContent::from_parts(filtered);
+					} else {
+						// Subsequent splits: drop text/reasoning too.
+						let tc_only: Vec<ContentPart> = filtered
+							.into_iter()
+							.filter(|p| matches!(p, ContentPart::ToolCall(_)))
+							.collect();
+						msg.content = MessageContent::from_parts(tc_only);
+					}
+					first = false;
+					result.push(msg);
+					if let Some(tr_idx) = tr_map.remove(call_id) {
+						result.push(msgs[tr_idx].clone());
+					}
+				}
 			}
 		}
 
 		// Emit any remaining tool results that didn't match a tool call
-		for (_, tr_msg) in tr_map {
-			result.push(tr_msg);
+		for (_, tr_idx) in tr_map {
+			result.push(msgs[tr_idx].clone());
 		}
 
 		if reordered_count > 1 {

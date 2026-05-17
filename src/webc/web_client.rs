@@ -67,6 +67,15 @@ impl WebClient {
 	pub fn new_req_builder(&self, url: &str, headers: &Headers, content: &Value) -> Result<RequestBuilder> {
 		let method = Method::POST;
 
+		let header_names: Vec<&str> = headers.iter().map(|(k, _)| k.as_str()).collect();
+		tracing::debug!(
+			url = %url,
+			header_count = headers.iter().count(),
+			header_names = ?header_names,
+			payload_size = serde_json::to_string(content).map(|s| s.len()).unwrap_or(0),
+			"Building genai HTTP request"
+		);
+
 		let mut reqwest_builder = self.reqwest_client.request(method, url);
 		for (k, v) in headers.iter() {
 			reqwest_builder = reqwest_builder.header(k, v);
