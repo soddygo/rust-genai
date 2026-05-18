@@ -15,6 +15,10 @@ pub struct ClientConfig {
 	pub(super) chat_options: Option<ChatOptions>,
 	pub(super) embed_options: Option<EmbedOptions>,
 	pub(super) adapter_kind: Option<AdapterKind>,
+	/// Default base URL used for adapter inference when the model name alone is ambiguous.
+	/// For example, GLM models exist on both bigmodel.cn and z.ai, so this URL
+	/// is used to disambiguate which adapter to use.
+	pub(super) default_base_url: Option<String>,
 }
 
 /// Chainable setters related to the ClientConfig.
@@ -88,6 +92,19 @@ impl ClientConfig {
 		self
 	}
 
+	/// Sets a default base URL used for adapter inference.
+	///
+	/// When set, this URL is passed to [`AdapterKind::from_model_and_url`] when
+	/// resolving model names to adapter kinds. This allows disambiguation of models
+	/// that exist on multiple providers (e.g., GLM models on bigmodel.cn vs z.ai).
+	///
+	/// The base URL is also used as the default endpoint if no
+	/// [`ServiceTargetResolver`] is configured.
+	pub fn with_default_base_url(mut self, base_url: impl Into<String>) -> Self {
+		self.default_base_url = Some(base_url.into());
+		self
+	}
+
 	/// Returns the WebConfig, if set.
 	pub fn web_config(&self) -> Option<&WebConfig> {
 		self.web_config.as_ref()
@@ -124,6 +141,11 @@ impl ClientConfig {
 	/// Returns the bound [`AdapterKind`], if set via [`Self::with_adapter_kind`].
 	pub fn adapter_kind(&self) -> Option<AdapterKind> {
 		self.adapter_kind
+	}
+
+	/// Returns the default base URL, if set via [`Self::with_default_base_url`].
+	pub fn default_base_url(&self) -> Option<&str> {
+		self.default_base_url.as_deref()
 	}
 }
 
@@ -239,7 +261,7 @@ impl ClientConfig {
 	pub async fn resolve_model_spec(&self, spec: ModelSpec) -> Result<ServiceTarget> {
 		match spec {
 			ModelSpec::Name(name) => {
-				let resolved = AdapterKind::from_model(&name)?;
+				let resolved = AdapterKind::from_model_and_url(&name, self.default_base_url.as_deref())?;
 				let adapter_kind = match self.adapter_kind {
 					Some(bound) => {
 						// If the name carries an explicit `::` namespace that

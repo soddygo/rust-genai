@@ -249,39 +249,50 @@ impl AdapterKind {
 
 /// From Model implementations
 impl AdapterKind {
-	/// This is a default static mapping from model names to AdapterKind.
+	/// Determines the appropriate AdapterKind for GLM models based on the base URL.
 	///
-	/// When more control is needed, the `ServiceTypeResolver` can be used
-	/// to map a model name to any adapter and endpoint.
+	/// GLM models can be served by either:
+	/// - BigModel adapter (for bigmodel.cn endpoint)
+	/// - Zai adapter (for z.ai endpoint)
 	///
-	///  - OpenAI     - starts_with "gpt", "o3", "o1", "chatgpt"
-	///  - Gemini     - starts_with "gemini"
-	///  - Anthropic  - starts_with "claude"
-	///  - Fireworks  - contains "fireworks" (might add leading or trailing '/' later)
-	///  - Groq       - model in Groq models
-	///  - DeepSeek   - model in DeepSeek models (deepseek.com)
-	///  - Zhipu      - starts_with "glm"
-	///  - Cohere     - starts_with "command"
-	///  - Ollama     - For anything else
+	/// When the model name matches GLM patterns and a base_url is provided,
+	/// we use the URL to disambiguate which adapter to use.
+	/// Falls back to BigModel if no URL match is found.
+	pub fn glm_adapter_kind_for_url(model: &str, base_url: Option<&str>) -> Option<Self> {
+		if !model.starts_with("glm") {
+			return None;
+		}
+
+		match base_url {
+			Some(url) if url.contains("bigmodel.cn") => Some(Self::BigModel),
+			Some(url) if url.contains("z.ai") => Some(Self::Zai),
+			_ => None,
+		}
+	}
+
+	/// Resolves the appropriate AdapterKind from a model name and optional base URL.
 	///
-	/// Other Some adapters have to have model name namespaced to be used,
-	/// - e.g., for together.ai `together::meta-llama/Llama-3-8b-chat-hf`
-	/// - e.g., for nebius with `nebius::Qwen/Qwen3-235B-A22B`
-	/// - e.g., for ZAI coding plan with `coding::glm-4.6`
-	/// - e.g., for vertex with `vertex::gemini-2.5-flash` or `vertex::claude-sonnet-4-6`
+	/// This is the same as [`Self::from_model`] but considers the base_url
+	/// for disambiguation when the model name alone is ambiguous (e.g., GLM models
+	/// that exist on both bigmodel.cn and z.ai).
 	///
-	/// And all adapters can be force namspaced as well.
+	/// When a `::` namespace prefix is present in the model name, the namespace
+	/// takes precedence and base_url is ignored.
 	///
-	/// Note: At this point, this will never fail as the fallback is the Ollama adapter.
-	///       This might change in the future, hence the Result return type.
-	///
-	/// IMPORTANT: Since v0.6.0, Groq and Deepseek models needs to be namespaced e.g., `groq::_model_name_`
-	//             (because now, list_names are dynamic, so, automatic mapping can only be done base on clear model "prefixes")
-	pub fn from_model(model: &str) -> Result<Self> {
+	/// For GLM models without a namespace:
+	/// - base_url containing "bigmodel.cn" → BigModel adapter
+	/// - base_url containing "z.ai" → Zai adapter
+	/// - otherwise → BigModel adapter (default)
+	pub fn from_model_and_url(model: &str, base_url: Option<&str>) -> Result<Self> {
 		// -- First check if namespaced
 		if let Some(adapter) = Self::from_model_namespace(model) {
 			return Ok(adapter);
 		};
+
+		// -- For GLM models, use base_url to disambiguate
+		if let Some(glm_adapter) = Self::glm_adapter_kind_for_url(model, base_url) {
+			return Ok(glm_adapter);
+		}
 
 		// -- Otherwise, Resolve from modelname
 		if model.starts_with("o3")
@@ -313,7 +324,8 @@ impl AdapterKind {
 		} else if model.starts_with("grok") {
 			Ok(Self::Xai)
 		} else if model.starts_with("glm") {
-			Ok(Self::Zai)
+			// GLM without a matching base_url defaults to BigModel
+			Ok(Self::BigModel)
 		} else if model.starts_with("deepseek-") {
 			Ok(Self::DeepSeek)
 		} else if model.starts_with("moonshot-") {
@@ -323,6 +335,40 @@ impl AdapterKind {
 		else {
 			Ok(Self::Ollama)
 		}
+	}
+
+	/// This is a default static mapping from model names to AdapterKind.
+	///
+	/// When more control is needed, the `ServiceTypeResolver` can be used
+	/// to map a model name to any adapter and endpoint.
+	///
+	///  - OpenAI     - starts_with "gpt", "o3", "o1", "chatgpt"
+	///  - Gemini     - starts_with "gemini"
+	///  - Anthropic  - starts_with "claude"
+	///  - Fireworks  - contains "fireworks" (might add leading or trailing '/' later)
+	///  - Groq       - model in Groq models
+	///  - DeepSeek   - model in DeepSeek models (deepseek.com)
+	///  - Zhipu      - starts_with "glm"
+	///  - Cohere     - starts_with "command"
+	///  - Ollama     - For anything else
+	///
+	/// Other Some adapters have to have model name namespaced to be used,
+	/// - e.g., for together.ai `together::meta-llama/Llama-3-8b-chat-hf`
+	/// - e.g., for nebius with `nebius::Qwen/Qwen3-235B-A22B`
+	/// - e.g., for ZAI coding plan with `coding::glm-4.6`
+	/// - e.g., for vertex with `vertex::gemini-2.5-flash` or `vertex::claude-sonnet-4-6`
+	///
+	/// And all adapters can be force namspaced as well.
+	///
+	/// Note: At this point, this will never fail as the fallback is the Ollama adapter.
+	///       This might change in the future, hence the Result return type.
+	///
+	/// IMPORTANT: Since v0.6.0, Groq and Deepseek models needs to be namespaced e.g., `groq::_model_name_`
+	//             (because now, list_names are dynamic, so, automatic mapping can only be done base on clear model "prefixes")
+	///
+	/// For context-aware routing that considers base_url, use [`Self::from_model_and_url`].
+	pub fn from_model(model: &str) -> Result<Self> {
+		Self::from_model_and_url(model, None)
 	}
 }
 
