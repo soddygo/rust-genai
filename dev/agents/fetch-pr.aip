@@ -47,6 +47,11 @@ return aip.flow.before_all_response({inputs = new_inputs})
 local pr_id = input.pr
 local wb_name = input.name
 
+aip.task.pin("workbench", {
+    label = "Workbench",
+    content = wb_name
+})
+
 local pr_res = aip.cmd.exec("gh", {"pr", "view", pr_id, "--json", "title,url,body,comments,author,createdAt,headRefName,headRepository,headRepositoryOwner"})
 if pr_res.error or pr_res.exit ~= 0 then
     error("Failed to fetch PR " .. pr_id .. " details with gh: " .. (pr_res.stderr or pr_res.error or "unknown error"))
@@ -118,7 +123,7 @@ if diff_res.error or diff_res.exit ~= 0 then
 end
 
 local title_slug = table.concat(words, "-")
-local data_dir = aip.path.join("_workbench", {wb_name, "data"})
+local data_dir = aip.path.join(".workbench", {wb_name, "data"})
 local patch_file_path = aip.path.join(data_dir, "pr-" .. pr_id .. "-patch-" .. title_slug .. ".md")
 local description_file_path = aip.path.join(data_dir, "pr-" .. pr_id .. "-description-" .. title_slug .. ".md")
 

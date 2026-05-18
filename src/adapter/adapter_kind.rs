@@ -1,3 +1,4 @@
+use crate::adapter::adapters::aihubmix::AihubmixAdapter;
 use crate::adapter::adapters::baidu::BAIDU_CODING_ANTHROPIC_NAMESPACE;
 use crate::adapter::adapters::baidu::BAIDU_CODING_OPENAI_NAMESPACE;
 use crate::adapter::adapters::bedrock::BedrockApiAdapter;
@@ -7,6 +8,7 @@ use crate::adapter::adapters::github_copilot::GithubCopilotAdapter;
 use crate::adapter::adapters::ollama::OllamaAdapter;
 use crate::adapter::adapters::ollama_cloud::OllamaCloudAdapter;
 use crate::adapter::adapters::openai_resp::OpenAIRespAdapter;
+use crate::adapter::adapters::open_router::OpenRouterAdapter;
 use crate::adapter::adapters::opencode_go::OpenCodeGoAdapter;
 use crate::adapter::adapters::together::TogetherAdapter;
 use crate::adapter::adapters::zai::ZaiAdapter;
@@ -50,6 +52,8 @@ pub enum AdapterKind {
 	Together,
 	/// Reuse some of the OpenAI adapter behavior, customize some (e.g., normalize thinking budget)
 	Groq,
+	/// For AIHubMix (Mostly use OpenAI)
+	Aihubmix,
 	/// For Mimo (Mostly use OpenAI)
 	Mimo,
 	/// For MiniMax (Mostly use OpenAI, with system message merging)
@@ -95,6 +99,10 @@ pub enum AdapterKind {
 	/// Requires the `bedrock-sigv4` Cargo feature.
 	#[cfg(feature = "bedrock-sigv4")]
 	BedrockSigv4,
+	/// OpenRouter — OpenAI-compatible gateway for many providers (OpenAI, Anthropic, Google, etc.).
+	/// Namespace: `open_router::openai/gpt-4.1`, `open_router::anthropic/claude-sonnet-4-5`.
+	/// Uses `OPEN_ROUTER_API_KEY`.
+	OpenRouter,
 }
 
 /// Serialization/Parse implementations
@@ -109,6 +117,7 @@ impl AdapterKind {
 			AdapterKind::Fireworks => "Fireworks",
 			AdapterKind::Together => "Together",
 			AdapterKind::Groq => "Groq",
+			AdapterKind::Aihubmix => "AIHubMix",
 			AdapterKind::Mimo => "Mimo",
 			AdapterKind::MiniMax => "MiniMax",
 			AdapterKind::Moonshot => "Moonshot",
@@ -128,6 +137,7 @@ impl AdapterKind {
 			AdapterKind::BedrockApi => "BedrockApi",
 			#[cfg(feature = "bedrock-sigv4")]
 			AdapterKind::BedrockSigv4 => "BedrockSigv4",
+			AdapterKind::OpenRouter => "OpenRouter",
 		}
 	}
 
@@ -141,6 +151,7 @@ impl AdapterKind {
 			AdapterKind::Fireworks => "fireworks",
 			AdapterKind::Together => "together",
 			AdapterKind::Groq => "groq",
+			AdapterKind::Aihubmix => "aihubmix",
 			AdapterKind::Mimo => "mimo",
 			AdapterKind::MiniMax => "minimax",
 			AdapterKind::Moonshot => "moonshot",
@@ -160,6 +171,7 @@ impl AdapterKind {
 			AdapterKind::BedrockApi => "bedrock_api",
 			#[cfg(feature = "bedrock-sigv4")]
 			AdapterKind::BedrockSigv4 => "bedrock_sigv4",
+			AdapterKind::OpenRouter => "open_router",
 		}
 	}
 
@@ -172,6 +184,7 @@ impl AdapterKind {
 			"fireworks" => Some(AdapterKind::Fireworks),
 			"together" => Some(AdapterKind::Together),
 			"groq" => Some(AdapterKind::Groq),
+			"aihubmix" => Some(AdapterKind::Aihubmix),
 			"mimo" => Some(AdapterKind::Mimo),
 			"minimax" => Some(AdapterKind::MiniMax),
 			"moonshot" => Some(AdapterKind::Moonshot),
@@ -191,6 +204,7 @@ impl AdapterKind {
 			"bedrock_api" => Some(AdapterKind::BedrockApi),
 			#[cfg(feature = "bedrock-sigv4")]
 			"bedrock_sigv4" => Some(AdapterKind::BedrockSigv4),
+			"open_router" => Some(AdapterKind::OpenRouter),
 			_ => None,
 		}
 	}
@@ -208,6 +222,7 @@ impl AdapterKind {
 			AdapterKind::Fireworks => FireworksAdapter::DEFAULT_API_KEY_ENV_NAME,
 			AdapterKind::Together => TogetherAdapter::DEFAULT_API_KEY_ENV_NAME,
 			AdapterKind::Groq => GroqAdapter::DEFAULT_API_KEY_ENV_NAME,
+			AdapterKind::Aihubmix => AihubmixAdapter::DEFAULT_API_KEY_ENV_NAME,
 			AdapterKind::Mimo => MimoAdapter::DEFAULT_API_KEY_ENV_NAME,
 			AdapterKind::MiniMax => MiniMaxAdapter::DEFAULT_API_KEY_ENV_NAME,
 			AdapterKind::Moonshot => MoonshotAdapter::DEFAULT_API_KEY_ENV_NAME,
@@ -227,6 +242,7 @@ impl AdapterKind {
 			AdapterKind::BedrockApi => BedrockApiAdapter::DEFAULT_API_KEY_ENV_NAME,
 			#[cfg(feature = "bedrock-sigv4")]
 			AdapterKind::BedrockSigv4 => BedrockSigv4Adapter::DEFAULT_API_KEY_ENV_NAME,
+			AdapterKind::OpenRouter => OpenRouterAdapter::DEFAULT_API_KEY_ENV_NAME,
 		}
 	}
 }

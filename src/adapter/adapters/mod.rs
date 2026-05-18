@@ -1,5 +1,6 @@
 mod support;
 
+pub(super) mod aihubmix;
 pub(super) mod aliyun;
 pub(super) mod anthropic;
 pub(super) mod baidu;
@@ -17,6 +18,7 @@ pub(super) mod moonshot;
 pub(super) mod nebius;
 pub(super) mod ollama;
 pub(super) mod ollama_cloud;
+pub(super) mod open_router;
 pub(super) mod openai;
 pub(super) mod openai_resp;
 pub(super) mod opencode_go;

@@ -47,6 +47,11 @@ return aip.flow.before_all_response({inputs = new_inputs})
 local issue_id = input.issue
 local wb_name = input.name
 
+aip.task.pin("workbench", {
+    label = "Workbench",
+    content = wb_name
+})
+
 local issue_res = aip.cmd.exec("gh", {"issue", "view", issue_id, "--json", "title,url,body,comments,author,createdAt"})
 if issue_res.error or issue_res.exit ~= 0 then
     error("Failed to fetch Issue " .. issue_id .. " details with gh: " .. (issue_res.stderr or issue_res.error or "unknown error"))
@@ -100,7 +105,7 @@ while #words < 3 do
 end
 
 local title_slug = table.concat(words, "-")
-local data_dir = aip.path.join("_workbench", {wb_name, "data"})
+local data_dir = aip.path.join(".workbench", {wb_name, "data"})
 local description_file_path = aip.path.join(data_dir, "issue-" .. issue_id .. "-description-" .. title_slug .. ".md")
 
 aip.file.ensure_dir(data_dir)

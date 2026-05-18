@@ -1,8 +1,13 @@
-# genai, Multi-AI Providers Library for Rust
+# genai, Native-Protocol Multi-AI Provider Library for Rust
 
-Currently natively supports: **OpenAI**, **OpenAI Responses**, **Anthropic**, **Gemini**, **xAI**, **Ollama**, **Ollama Cloud**, **OpenCode Go**, **Groq**, **DeepSeek**, **Cohere**, **Together**, **Fireworks**, **Nebius**, **Mimo**, **Zai** (Zhipu AI), **BigModel**, **Aliyun**, **Google Vertex**, **GitHub Copilot** (GitHub Models API).
+Provides a single, ergonomic Rust API for native-protocol multi-AI provider access, including Anthropic, OpenAI, Gemini, xAI, Ollama, Groq, and more.
 
-Also supports a custom URL with `ServiceTargetResolver` (see [examples/c06-target-resolver.rs](examples/c06-target-resolver.rs)).
+Currently natively supports over **25 providers**: `OpenAI`, `OpenAI Responses`, `Anthropic`, `Gemini`, `xAI`, `Ollama`, `Ollama Cloud`, `OpenCode Go`, `Groq`, `DeepSeek`, `Cohere`, `Together`, `Fireworks`, `Nebius`, `Mimo`, `Zai` (Zhipu AI), `BigModel`, `Aliyun`, `Baidu`, `Moonshot`, `Google Vertex`, `GitHub Copilot` (GitHub Models API), `AIHubMix`, `AWS Bedrock`, `OpenRouter`.
+
+Also supports a custom Endpoint and Auth with `ServiceTargetResolver` (see [examples/c06-target-resolver.rs](examples/c06-target-resolver.rs)).
+
+**NOTE:** Use `genai = "0.6.0-beta.20"` or later for improved robustness, even compared to `0.5.x`, along with many more providers, fixes, performance improvements, and API enhancements. `v0.6.0` is coming soon.
+
 
 <div align="center">
 
@@ -12,9 +17,6 @@ Also supports a custom URL with `ServiceTargetResolver` (see [examples/c06-targe
 
 </div>
 
-Provides a single, ergonomic API for many generative AI providers, such as Anthropic, OpenAI, Gemini, xAI, Ollama, Groq, and more.
-
-**NOTE:** Big update with **v0.5.0**: New adapters (BigModel, MIMO), Gemini Thinking support, Anthropic Reasoning Effort, and a more robust internal streaming engine.
 
 [Docs for LLMs](docs/for-llm/api-reference-for-llm.md) | [CHANGELOG](CHANGELOG.md) | [BIG THANKS](BIG-THANKS.md)
 
@@ -28,12 +30,13 @@ By default, the library resolves the `AdapterKind` (AI Provider) based on the mo
 - **Gemini**: `gemini-*`
 - **xAI**: `grok-*`
 - **DeepSeek**: `deepseek-*`
+- **Moonshot**: `moonshot-*`
 - **Zai**: `glm-*`
 - **Cohere**: `command-*`, `embed-*`
 - **Mimo**: `mimo-*`
-- **OpenCode Go**: namespace `opencode_go::` only
-- **Fireworks**: contains `fireworks`
-- **Ollama**: Fallback for any other names, which defaults to local Ollama.
+- **OpenCode Go**: Namespace `opencode_go::` only
+- **Fireworks**: Models containing `fireworks`
+- **Ollama**: Fallback for any other names, defaulting to local Ollama.
 
 ### Namespacing (Forcing an Adapter)
 
@@ -46,26 +49,38 @@ You can force a specific adapter by using the `adapter_kind::model_name` syntax.
 - `nebius::Qwen/Qwen3-235B-A22B` (Forces **Nebius** adapter)
 - `aliyun::qwen-plus` (Forces **Aliyun** adapter)
 - `vertex::gemini-2.5-flash` (Forces **Google Vertex** adapter)
+- `moonshot::moonshot-v1-8k` (Forces **Moonshot** adapter)
+- `baidu::ernie-4.0` (Forces **Baidu** adapter)
 - `coding::glm-4.6` (Special namespace for **Zai** coding subscription)
 - `opencode_go::minimax-m2.5` (Forces **OpenCodeGo** adapter)
+- `bedrock_api::anthropic.claude-v2` (Forces **AWS Bedrock** adapter)
+- `open_router::google/gemini-2.0-flash-001` (Forces **OpenRouter** adapter)
 
 For a complete list of `AdapterKind`, see the [AdapterKind enum](src/adapter/adapter_kind.rs).
 
-## v0.5.x - (2026-01-09...)
+## v0.6.x - (2026-05-16...)
+
+- **What's new**:
+    - **New Adapters**: AWS Bedrock (API and SigV4), OpenRouter, Baidu, Moonshot, and many others.
+    - **Expanded Provider Support**: Comprehensive coverage of major AI ecosystems.
+    - **Updated API**: Refined `ReasoningContent` and `StopReason` handling (v0.6.0-beta.20).
+    - Numerous fixes, optimizations, and API enhancements.
+
+## v0.5.x - (2026-01-09 onwards)
 
 - **What's new**:
     - **New Adapters**: BigModel.cn and the MIMO model adapter (thanks to [Akagi201](https://github.com/Akagi201)).
-    - **zai: changed namespace strategy**, with (zai:: for default, and zai-codding:: for subscription, same adapter)
+    - **zai: updated namespace strategy**, using `zai::` for default and `zai-coding::` for subscriptions (same adapter).
     - **Gemini Thinking & Thought**: Full support for Gemini Thought signatures (thanks to [Himmelschmidt](https://github.com/Himmelschmidt)) and thinking levels.
     - **Reasoning Effort Control**: Support for `ReasoningEffort` for Anthropic (Claude 3.7/4.5) and Gemini (Thinking levels), including `ReasoningEffort::None`.
     - **Content & Binary Improvements**: Enhanced binary/PDF API and size tracking.
     - **Internal Stream Refactor**: Switched to a unified `EventSourceStream` and `WebStream` for better reliability and performance across all providers.
     - **Dependency Upgrade**: Now using `reqwest 0.13`.
-- **What's still awesome**:
+- **Core Features**:
     - Normalized and ergonomic Chat API across all major providers.
     - Native protocol support for Gemini and Anthropic protocols (Reasoning/Thinking controls).
     - PDF, image, and embedding support.
-    - Custom auth, endpoint, and header overrides.
+    - Custom authentication, endpoint, and header overrides.
 
 See [CHANGELOG](CHANGELOG.md)
 
@@ -77,7 +92,7 @@ See [CHANGELOG](CHANGELOG.md)
 
 ## Key Features
 
-- Native Multi-AI Provider/Model: OpenAI, OpenAI Responses, Anthropic, Gemini, Ollama, Ollama Cloud, OpenCode Go, Groq, xAI, DeepSeek, Cohere, Together, Fireworks, Nebius, Mimo, Zai, BigModel, Aliyun, Google Vertex, and GitHub Copilot (direct chat and streaming) (see [examples/c00-readme.rs](examples/c00-readme.rs))
+- Multi-AI Provider/Model access optimized per provider: native protocols when available, OpenAI-compatible APIs when appropriate or required, and one common Rust API for OpenAI, OpenAI Responses, Anthropic, Gemini, Ollama, Ollama Cloud, OpenCode Go, Groq, xAI, DeepSeek, Cohere, Together, Fireworks, Nebius, Mimo, Zai, BigModel, Aliyun, Google Vertex, and GitHub Copilot (direct chat and streaming) (see [examples/c00-readme.rs](examples/c00-readme.rs))
 - DeepSeekR1 support, with `reasoning_content` (and stream support), plus DeepSeek Groq and Ollama support (and `reasoning_content` normalization)
 - Image Analysis (for OpenAI, Gemini flash-2, Anthropic) (see [examples/c07-image.rs](examples/c07-image.rs))
 - Custom Auth/API Key (see [examples/c02-auth.rs](examples/c02-auth.rs))
@@ -110,11 +125,16 @@ const MODEL_XAI: &str = "grok-3-mini";
 const MODEL_DEEPSEEK: &str = "deepseek-chat";
 const MODEL_ZAI: &str = "glm-4-plus";
 const MODEL_COHERE: &str = "command-r7b-12-2024";
+const MODEL_MOONSHOT: &str = "moonshot::moonshot-v1-8k";
+const MODEL_BAIDU: &str = "baidu::ernie-4.0";
+const MODEL_BIGMODEL: &str = "bigmodel::glm-4-plus";
+const MODEL_ALIYUN: &str = "aliyun::qwen-plus";
 // or any publisher: "github_copilot::anthropic/claude-sonnet-4-6", "github_copilot::google/gemini-2.5-pro", "github_copilot::xai/grok-3-mini"
 const MODEL_GITHUB_COPILOT: &str = "github_copilot::openai/gpt-4.1-mini";
+const MODEL_OPEN_ROUTER: &str = "open_router::google/gemini-2.0-flash-001";
 
 // NOTE: These are the default environment keys for each AI Adapter Type.
-//       They can be customized; see `examples/c02-auth.rs`
+//       They can be customized; see `examples/c02-auth.rs`.
 const MODEL_AND_KEY_ENV_NAME_LIST: &[(&str, &str)] = &[
 	// -- De/activate models/providers
 	(MODEL_OPENAI, "OPENAI_API_KEY"),
@@ -129,7 +149,12 @@ const MODEL_AND_KEY_ENV_NAME_LIST: &[(&str, &str)] = &[
 	(MODEL_OLLAMA_CLOUD, "OLLAMA_API_KEY"),
 	(MODEL_ZAI, "ZAI_API_KEY"),
 	(MODEL_COHERE, "COHERE_API_KEY"),
+	(MODEL_MOONSHOT, "MOONSHOT_API_KEY"),
+	(MODEL_BAIDU, "BAIDU_API_KEY"),
+	(MODEL_BIGMODEL, "BIGMODEL_API_KEY"),
+	(MODEL_ALIYUN, "ALIYUN_API_KEY"),
 	(MODEL_GITHUB_COPILOT, "GITHUB_TOKEN"),
+	(MODEL_OPEN_ROUTER, "OPEN_ROUTER_API_KEY"),
 ];
 
 // NOTE: Model to AdapterKind (AI Provider) type mapping rule
@@ -215,19 +240,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## Library Focus:
 
-- Focuses on standardizing chat completion APIs across major AI services.
+- Focuses on standardizing chat completion APIs across major AI providers while preserving provider-specific strengths.
 
-- Native implementation, meaning no per-service SDKs.
-    - Reason: While there are some variations across the various APIs, they all follow the same pattern and high-level flow and constructs. Managing the differences at a lower layer is actually simpler and more cumulative across services than doing SDK gymnastics.
+- Native implementation without per-service SDK dependencies.
+    - Reason: genai uses each provider's native protocol when available, so features such as reasoning controls, thinking budgets, streaming metadata, and multimodal inputs can be represented more completely. When a provider primarily exposes an OpenAI-compatible API, genai uses that compatibility layer instead. Managing these protocol differences at the adapter layer is simpler and more cumulative than dealing with multiple SDKs.
 
-- Prioritizes ergonomics and commonality, with depth being secondary. (If you require a complete client API, consider using [async-openai](https://crates.io/search?q=async-openai) and [ollama-rs](https://crates.io/crates/ollama-rs); they are both excellent and easy to use.)
+- Prioritizes ergonomics and commonality, while depth is secondary. (If you require a complete client API, consider using [async-openai](https://crates.io/search?q=async-openai) and [ollama-rs](https://crates.io/crates/ollama-rs); both are excellent and easy to use.)
 
-- Initially, this library will mostly focus on text chat APIs, with images and function calling coming later.
+- This library focuses on text chat APIs, with vision and function calling support being expanded.
 
 ## ChatOptions
 
 - **(1)** - **OpenAI-compatible** notes
-	- Models: OpenAI, DeepSeek, Groq, Ollama, xAI, Mimo, Together, Fireworks, Nebius, Zai, Together, Fireworks, Nebius, Zai
+	- Models: OpenAI, DeepSeek, Groq, Ollama, xAI, Mimo, Together, Fireworks, Nebius, Zai, AIHubMix
 
 | Property      | OpenAI Compatibles (*1) | Anthropic                   | Gemini `generationConfig.` | Cohere        |
 |---------------|-------------------------|-----------------------------|----------------------------|---------------|
@@ -246,7 +271,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 | `completion_tokens_details` | `completion_tokens_details` | N/A for now             | N/A for now                | N/A for now           |
 
 - **(1)** - **OpenAI-compatible** notes
-	- Models: OpenAI, DeepSeek, Groq, Ollama, xAI, Mimo
+	- Models: OpenAI, DeepSeek, Groq, Ollama, xAI, Mimo, AIHubMix
 	- For **Groq**, the property `x_groq.usage.`
 	- At this point, **Ollama** does not emit input/output tokens when streaming due to a limitation in the Ollama OpenAI compatibility layer. (see [ollama #4448 - Streaming Chat Completion via OpenAI API should support stream option to include Usage](https://github.com/ollama/ollama/issues/4448))
 	- `prompt_tokens_details` and `completion_tokens_details` will have the value sent by the compatible provider (or None)

@@ -47,6 +47,10 @@ macro_rules! dispatch_adapter {
 				type A = crate::adapter::groq::[<Groq Adapter>];
 				$body
 			}
+			crate::adapter::AdapterKind::Aihubmix => {
+				type A = crate::adapter::adapters::aihubmix::[<Aihubmix Adapter>];
+				$body
+			}
 			crate::adapter::AdapterKind::Moonshot => {
 				type A = crate::adapter::moonshot::[<Moonshot Adapter>];
 				$body
@@ -118,6 +122,10 @@ macro_rules! dispatch_adapter {
 			#[cfg(feature = "bedrock-sigv4")]
 			crate::adapter::AdapterKind::BedrockSigv4 => {
 				type A = crate::adapter::adapters::bedrock::[<BedrockSigv4 Adapter>];
+				$body
+			}
+			crate::adapter::AdapterKind::OpenRouter => {
+				type A = crate::adapter::adapters::open_router::[<OpenRouter Adapter>];
 				$body
 			}
 		}
