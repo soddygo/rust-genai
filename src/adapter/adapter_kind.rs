@@ -249,6 +249,51 @@ impl AdapterKind {
 
 /// From Model implementations
 impl AdapterKind {
+	/// Maps a URL to AdapterKind based on known provider endpoint patterns.
+	///
+	/// URL is authoritative because it identifies the actual API endpoint.
+	/// Returns None if no known provider matches.
+	///
+	/// This allows routing decisions to be made based on the actual endpoint
+	/// rather than relying solely on model name patterns.
+	pub fn from_url(url: &str) -> Option<Self> {
+		let url = url.to_ascii_lowercase();
+
+		if url.contains("deepseek") {
+			Some(Self::DeepSeek)
+		} else if url.contains("minimax") {
+			Some(Self::MiniMax)
+		} else if url.contains("moonshot") {
+			Some(Self::Moonshot)
+		} else if url.contains("aliyuncs.com") || url.contains("dashscope") {
+			Some(Self::Aliyun)
+		} else if url.contains("baidubce.com") {
+			Some(Self::Baidu)
+		} else if url.contains("xiaomimimo") {
+			Some(Self::Mimo)
+		} else if url.contains("z.ai") {
+			Some(Self::Zai)
+		} else if url.contains("bigmodel.cn") {
+			Some(Self::BigModel)
+		} else if url.contains("x.ai") {
+			Some(Self::Xai)
+		} else if url.contains("fireworks.ai") {
+			Some(Self::Fireworks)
+		} else if url.contains("api.groq.com") {
+			Some(Self::Groq)
+		} else if url.contains("generativelanguage.googleapis.com") || url.contains("ai.google.dev") {
+			Some(Self::Gemini)
+		} else if url.contains("api.anthropic.com") {
+			Some(Self::Anthropic)
+		} else if url.contains("api.together.xyz") {
+			Some(Self::Together)
+		} else if url.contains("api.cohere.com") {
+			Some(Self::Cohere)
+		} else {
+			None
+		}
+	}
+
 	/// Determines the appropriate AdapterKind for GLM models based on the base URL.
 	///
 	/// GLM models can be served by either:
@@ -257,7 +302,7 @@ impl AdapterKind {
 	///
 	/// When the model name matches GLM patterns and a base_url is provided,
 	/// we use the URL to disambiguate which adapter to use.
-	/// Falls back to BigModel if no URL match is found.
+	/// Returns None if the URL doesn't match known providers.
 	pub fn glm_adapter_kind_for_url(model: &str, base_url: Option<&str>) -> Option<Self> {
 		if !model.starts_with("glm") {
 			return None;
@@ -272,29 +317,27 @@ impl AdapterKind {
 
 	/// Resolves the appropriate AdapterKind from a model name and optional base URL.
 	///
-	/// This is the same as [`Self::from_model`] but considers the base_url
-	/// for disambiguation when the model name alone is ambiguous (e.g., GLM models
-	/// that exist on both bigmodel.cn and z.ai).
+	/// Priority order:
+	/// 1. Namespace prefix (e.g., `openai::gpt-4`) - explicit user intent
+	/// 2. URL pattern match - authoritative endpoint identification
+	/// 3. Model name prefix - heuristic fallback
 	///
 	/// When a `::` namespace prefix is present in the model name, the namespace
-	/// takes precedence and base_url is ignored.
-	///
-	/// For GLM models without a namespace:
-	/// - base_url containing "bigmodel.cn" → BigModel adapter
-	/// - base_url containing "z.ai" → Zai adapter
-	/// - otherwise → BigModel adapter (default)
+	/// takes precedence and URL is ignored.
 	pub fn from_model_and_url(model: &str, base_url: Option<&str>) -> Result<Self> {
 		// -- First check if namespaced
 		if let Some(adapter) = Self::from_model_namespace(model) {
 			return Ok(adapter);
 		};
 
-		// -- For GLM models, use base_url to disambiguate
-		if let Some(glm_adapter) = Self::glm_adapter_kind_for_url(model, base_url) {
-			return Ok(glm_adapter);
+		// -- Second, check URL-based routing (authoritative)
+		if let Some(url) = base_url {
+			if let Some(adapter) = Self::from_url(url) {
+				return Ok(adapter);
+			}
 		}
 
-		// -- Otherwise, Resolve from modelname
+		// -- Third, resolve from modelname
 		if model.starts_with("o3")
 			|| model.starts_with("o4")
 			|| model.starts_with("o1")
@@ -323,13 +366,18 @@ impl AdapterKind {
 			Ok(Self::Cohere)
 		} else if model.starts_with("grok") {
 			Ok(Self::Xai)
-		} else if model.starts_with("glm") {
-			// GLM without a matching base_url defaults to BigModel
-			Ok(Self::BigModel)
 		} else if model.starts_with("deepseek-") {
 			Ok(Self::DeepSeek)
 		} else if model.starts_with("moonshot-") {
 			Ok(Self::Moonshot)
+		} else if model.starts_with("glm") {
+			// GLM models without matching URL:
+			// - with URL but doesn't match known providers → OpenAI (third-party proxy)
+			// - without URL → BigModel (default)
+			match base_url {
+				Some(_) => Ok(Self::OpenAI), // Third-party proxy
+				None => Ok(Self::BigModel), // Default
+			}
 		}
 		// For now, fallback to Ollama
 		else {
