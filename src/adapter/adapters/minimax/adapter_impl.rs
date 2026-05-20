@@ -12,6 +12,16 @@ use reqwest::RequestBuilder;
 use serde_json;
 use std::collections::HashMap;
 
+/// The MiniMax AI adapter.
+/// The MiniMax API is mostly compatible with the OpenAI API, with some differences:
+/// - Uses `max_completion_tokens` instead of `max_tokens`
+/// - Does not support `stream_options`, `strict` in tools, or `tool_choice`
+/// - Requires string content (not content arrays) in messages
+/// - Uses `reasoning_split` to separate reasoning content
+///
+/// Base URL (use `ClientBuilder::with_base_url()` to override):
+/// - International: https://api.minimax.io/v1/
+/// - China: https://api.minimaxi.com/v1/
 pub struct MiniMaxAdapter;
 
 impl MiniMaxAdapter {
@@ -22,7 +32,11 @@ impl Adapter for MiniMaxAdapter {
 	const DEFAULT_API_KEY_ENV_NAME: Option<&'static str> = Some(Self::API_KEY_DEFAULT_ENV_NAME);
 
 	fn default_endpoint() -> Endpoint {
-		const BASE_URL: &str = "https://api.minimax.chat/v1/";
+		// MiniMax base URL:
+		// - International: https://api.minimax.io/v1/
+		// - China: https://api.minimaxi.com/v1/
+		// Use `ClientBuilder::with_base_url()` to override for China users.
+		const BASE_URL: &str = "https://api.minimax.io/v1/";
 		Endpoint::from_static(BASE_URL)
 	}
 
@@ -132,7 +146,7 @@ impl Adapter for MiniMaxAdapter {
 	}
 
 	fn to_embed_request_data(
-		service_target: crate::ServiceTarget,
+		service_target: ServiceTarget,
 		embed_req: crate::embed::EmbedRequest,
 		options_set: crate::embed::EmbedOptionsSet<'_, '_>,
 	) -> Result<crate::adapter::WebRequestData> {
@@ -140,8 +154,8 @@ impl Adapter for MiniMaxAdapter {
 	}
 
 	fn to_embed_response(
-		model_iden: crate::ModelIden,
-		web_response: crate::webc::WebResponse,
+		model_iden: ModelIden,
+		web_response: WebResponse,
 		options_set: crate::embed::EmbedOptionsSet<'_, '_>,
 	) -> Result<crate::embed::EmbedResponse> {
 		OpenAIAdapter::to_embed_response(model_iden, web_response, options_set)

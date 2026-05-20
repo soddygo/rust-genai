@@ -105,6 +105,16 @@ pub enum AdapterKind {
 	OpenRouter,
 }
 
+/// Wire protocol type for OpenAI-compatible APIs.
+/// Used to distinguish between Chat and Response APIs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WireApi {
+	/// OpenAI Chat API (gpt-4, gpt-3.5-turbo, etc.)
+	Chat,
+	/// OpenAI Response API (gpt-5, codex models, etc.)
+	Response,
+}
+
 /// Serialization/Parse implementations
 impl AdapterKind {
 	/// Serialize to a static str
@@ -261,7 +271,7 @@ impl AdapterKind {
 
 		if url.contains("deepseek") {
 			Some(Self::DeepSeek)
-		} else if url.contains("minimax") {
+		} else if url.contains("minimax.io") || url.contains("minimaxi.com") {
 			Some(Self::MiniMax)
 		} else if url.contains("moonshot") {
 			Some(Self::Moonshot)
@@ -315,76 +325,6 @@ impl AdapterKind {
 		}
 	}
 
-	/// Resolves the appropriate AdapterKind from a model name and optional base URL.
-	///
-	/// Priority order:
-	/// 1. Namespace prefix (e.g., `openai::gpt-4`) - explicit user intent
-	/// 2. URL pattern match - authoritative endpoint identification
-	/// 3. Model name prefix - heuristic fallback
-	///
-	/// When a `::` namespace prefix is present in the model name, the namespace
-	/// takes precedence and URL is ignored.
-	pub fn from_model_and_url(model: &str, base_url: Option<&str>) -> Result<Self> {
-		// -- First check if namespaced
-		if let Some(adapter) = Self::from_model_namespace(model) {
-			return Ok(adapter);
-		};
-
-		// -- Second, check URL-based routing (authoritative)
-		if let Some(url) = base_url {
-			if let Some(adapter) = Self::from_url(url) {
-				return Ok(adapter);
-			}
-		}
-
-		// -- Third, resolve from modelname
-		if model.starts_with("o3")
-			|| model.starts_with("o4")
-			|| model.starts_with("o1")
-			|| model.starts_with("chatgpt")
-			|| model.starts_with("codex")
-			|| (model.starts_with("gpt") && !model.starts_with("gpt-oss"))
-			|| model.starts_with("text-embedding")
-		// migh be a little generic on this one
-		{
-			if model.starts_with("gpt-5")
-				|| (model.starts_with("gpt") && (model.contains("codex") || model.contains("pro")))
-			{
-				Ok(Self::OpenAIResp)
-			} else {
-				Ok(Self::OpenAI)
-			}
-		} else if model.starts_with("gemini") {
-			Ok(Self::Gemini)
-		} else if model.starts_with("claude") {
-			Ok(Self::Anthropic)
-		} else if model.contains("fireworks") {
-			Ok(Self::Fireworks)
-		} else if model.starts_with("mimo-") {
-			Ok(Self::Mimo)
-		} else if model.starts_with("command") || model.starts_with("embed-") {
-			Ok(Self::Cohere)
-		} else if model.starts_with("grok") {
-			Ok(Self::Xai)
-		} else if model.starts_with("deepseek-") {
-			Ok(Self::DeepSeek)
-		} else if model.starts_with("moonshot-") {
-			Ok(Self::Moonshot)
-		} else if model.starts_with("glm") {
-			// GLM models without matching URL:
-			// - with URL but doesn't match known providers → OpenAI (third-party proxy)
-			// - without URL → BigModel (default)
-			match base_url {
-				Some(_) => Ok(Self::OpenAI), // Third-party proxy
-				None => Ok(Self::BigModel), // Default
-			}
-		}
-		// For now, fallback to Ollama
-		else {
-			Ok(Self::Ollama)
-		}
-	}
-
 	/// This is a default static mapping from model names to AdapterKind.
 	///
 	/// When more control is needed, the `ServiceTypeResolver` can be used
@@ -414,9 +354,83 @@ impl AdapterKind {
 	/// IMPORTANT: Since v0.6.0, Groq and Deepseek models needs to be namespaced e.g., `groq::_model_name_`
 	//             (because now, list_names are dynamic, so, automatic mapping can only be done base on clear model "prefixes")
 	///
-	/// For context-aware routing that considers base_url, use [`Self::from_model_and_url`].
+	/// For context-aware routing that considers base_url, use [`Self::from_model_and_url_for_openai`].
 	pub fn from_model(model: &str) -> Result<Self> {
-		Self::from_model_and_url(model, None)
+		// -- First check if namespaced
+		if let Some(adapter) = Self::from_model_namespace(model) {
+			return Ok(adapter);
+		};
+
+		// -- Otherwise, Resolve from modelname
+		if model.starts_with("o3")
+			|| model.starts_with("o4")
+			|| model.starts_with("o1")
+			|| model.starts_with("chatgpt")
+			|| model.starts_with("codex")
+			|| (model.starts_with("gpt") && !model.starts_with("gpt-oss"))
+			|| model.starts_with("text-embedding")
+		// migh be a little generic on this one
+		{
+			if model.starts_with("gpt-5")
+				|| (model.starts_with("gpt") && (model.contains("codex") || model.contains("pro")))
+			{
+				Ok(Self::OpenAIResp)
+			} else {
+				Ok(Self::OpenAI)
+			}
+		} else if model.starts_with("gemini") {
+			Ok(Self::Gemini)
+		} else if model.starts_with("claude") {
+			Ok(Self::Anthropic)
+		} else if model.contains("fireworks") {
+			Ok(Self::Fireworks)
+		} else if model.starts_with("mimo-") {
+			Ok(Self::Mimo)
+		} else if model.starts_with("minimax-") {
+			Ok(Self::MiniMax)
+		} else if model.starts_with("command") || model.starts_with("embed-") {
+			Ok(Self::Cohere)
+		} else if model.starts_with("grok") {
+			Ok(Self::Xai)
+		} else if model.starts_with("glm") {
+			Ok(Self::Zai)
+		} else if model.starts_with("deepseek-") {
+			Ok(Self::DeepSeek)
+		} else if model.starts_with("moonshot-") {
+			Ok(Self::Moonshot)
+		}
+		// For now, fallback to Ollama
+		else {
+			Ok(Self::Ollama)
+		}
+	}
+
+	/// Resolves AdapterKind for OpenAI-compatible APIs with URL-based routing.
+	///
+	/// This is simplified for codex use case - only handles OpenAI-compatible models.
+	///
+	/// Priority:
+	/// 1. Namespace prefix (e.g., `minimax::minimax-m2.7`)
+	/// 2. URL match (official domains via `from_url`)
+	/// 3. Fallback: OpenAI/Chat or OpenAIResp based on wire_api
+	pub fn from_model_and_url_for_openai(model: &str, base_url: Option<&str>, wire_api: WireApi) -> Result<Self> {
+		// -- First check if namespaced
+		if let Some(adapter) = Self::from_model_namespace(model) {
+			return Ok(adapter);
+		};
+
+		// -- Second, check URL-based routing via from_url
+		if let Some(url) = base_url {
+			if let Some(adapter) = Self::from_url(url) {
+				return Ok(adapter);
+			}
+		}
+
+		// -- Third, fallback based on wire_api
+		match wire_api {
+			WireApi::Response => Ok(Self::OpenAIResp),
+			WireApi::Chat => Ok(Self::OpenAI),
+		}
 	}
 }
 

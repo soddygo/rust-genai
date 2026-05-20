@@ -108,17 +108,6 @@ impl ClientBuilder {
 		client_config.adapter_kind = Some(adapter_kind);
 		self
 	}
-
-	/// Set a default base URL for adapter inference (creates `ClientConfig` if absent).
-	///
-	/// See [`ClientConfig::with_default_base_url`] for details. This allows
-	/// disambiguation of models that exist on multiple providers (e.g., GLM models
-	/// on bigmodel.cn vs z.ai).
-	pub fn with_default_base_url(mut self, base_url: impl Into<String>) -> Self {
-		let client_config = self.config.get_or_insert_with(ClientConfig::default);
-		client_config.default_base_url = Some(base_url.into());
-		self
-	}
 }
 
 impl ClientBuilder {
